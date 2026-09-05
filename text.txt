@@ -1,1 +1,0 @@
-Finish the font/dropping sequence and complete the Game Start function

@@ -87,7 +87,7 @@ class Design:
         else:
             self.screen.blit(letterScreen, (loc[0] - 10, loc[1] - 10))
 
-    def draw_input_boxself, loc, dims, colour):
+    def draw_input_box(self, loc, dims, colour):
         pass
 
     def draw_bg(self):
