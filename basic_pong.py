@@ -1,5 +1,3 @@
-from curses import window
-
 import pygame
 import math
 import random
@@ -8,15 +6,13 @@ import time
 pygame.init()
 pygame.mixer.init()
 
-class Design:
-    def __init__(self, screen, windowSize, bg_colour):
-        self.screen = screen
-        self.windowSize = windowSize
-        self.drop_music = pygame.mixer.Sound("Python/PONG/music/drop.mp3")
-        self.default_bg = bg_colour       
+class Helper:
+    def __init__(self):
+        pass
 
-    def draw_words(self, words, loc, font = ["sys", True, ("font-name", 100, False, False)], spacing=(False, 0)):
-
+    def readFont(self, font):
+        #font format is 
+        # custom / system | already premade font or not | (font-family, size, bold, italic)
         if font[1]:
             if font[0] == "file":
                 font = pygame.font.Font(*font[2])
@@ -24,13 +20,35 @@ class Design:
                 font = pygame.font.SysFont(*font[2])
         else:
             font = font[2]
+        return font
 
+class Design:
+    def __init__(self, screen, windowSize, bg_colour):
+        self.screen = screen
+        self.windowSize = windowSize
+        self.drop_music = pygame.mixer.Sound("Python/PONG/music/drop.mp3")
+        self.default_bg = bg_colour
+        self.Helper = Helper()   
+
+    def draw_words(self, words, loc, font = ["sys", True, ("font-name", 100, False, False)], spacing=(False, 0)):
+        font = self.Helper.readFont(font)
+        word_List = []
+        total_width = 0
+        total_height = 0
         if spacing[0]:
+            #preproccessing
             for letter in words:
                 letterScreen = font.render(letter, True, (255, 255, 255))
                 letterWidth = letterScreen.get_width()
                 letterHeight = letterScreen.get_height()
-                self.screen.blit(letterScreen, (loc[0], loc[1]))
+                total_width += letterWidth + spacing[1]
+                word_List.append(letterScreen)
+
+            loc[0] -= total_width // 2
+
+            #actually blitting
+            for letter in word_List:
+                self.screen.blit(letter, (loc[0], loc[1]))
                 loc[0] += letterWidth + spacing[1]
 
                     
@@ -43,16 +61,7 @@ class Design:
     def draw_dropping_text(self, font = ["sys", True, ("font-name", 100, False, False)], x_loc = 860, y_bounds = (300, 900), words = "maybe, just maybe, enter what to print", speed = 1, skip_enable = False, drop_sound = False):
         anim_done = False
         self.draw_bg()
-
-        if font[1]:
-            if font[0] == "file":
-                font = pygame.font.Font(*font[2])
-            elif font[0] == "sys":
-                font = pygame.font.SysFont(*font[2])
-        else:
-            font = font[2]
-
-
+        font = self.Helper.readFont(font)
         for letter in words:
             letterScreen = font.render(letter, True, (255, 255, 255))
             letterWidth = letterScreen.get_width()
@@ -77,15 +86,29 @@ class Design:
 
         return True
   
-    def draw_interactable_button(self, loc, dims, colour, font, text, mouse, flags):
-       #possible flags: outline, 
-        letterScreen = font.render(text, True, colour)
-        textHitbox = pygame.rect.Rect(*loc, *dims)
+    def draw_interactable_button(self, loc, colour, font, text, mouse, flags = False):
+        #possible flags: outline, 
+        temp_font = self.Helper.readFont(font)
+        letterScreen = temp_font.render(text, True, colour)
+        loc[0] -= letterScreen.get_width() // 2
+        textHitbox = pygame.rect.Rect(*loc, letterScreen.get_width(), letterScreen.get_height())
         mouseHitbox = pygame.rect.Rect(*mouse, 1, 1)
-        if not textHitbox.colliderect(mouseHitbox):
-            self.screen.blit(letterScreen, *loc)
+        if flags:
+            padx = 30
+            pady = padx
+            if textHitbox.colliderect(mouseHitbox) and "outline" in flags:
+                pygame.draw.rect(self.screen, "white", (loc[0] - 10 - padx // 2, loc[1] - 10 - pady // 2, letterScreen.get_width() + padx, letterScreen.get_height() + pady), 3)
+                self.screen.blit(letterScreen, (loc[0] - 10, loc[1] - 10))
+            else:
+                pygame.draw.rect(self.screen, "white", (loc[0] - padx // 2, loc[1] - pady // 2, letterScreen.get_width() + padx, letterScreen.get_height() + pady), 3)               
+                self.screen.blit(letterScreen, loc)           
         else:
-            self.screen.blit(letterScreen, (loc[0] - 10, loc[1] - 10))
+            if not textHitbox.colliderect(mouseHitbox):
+                self.screen.blit(letterScreen, loc)
+            else:
+                self.screen.blit(letterScreen, (loc[0] - 10, loc[1] - 10))
+
+        
 
     def draw_input_box(self, loc, dims, colour):
         pass
@@ -95,7 +118,7 @@ class Design:
 
 class Game:
     def __init__(self, windowSize = (1920, 1080)):
-        pygame.mixer.music.load("Python/PONG/music/background.mp3")
+        pygame.mixer.music.load("Python/PONG/music/menu.mp3")
         # define window
         self.windowSize = windowSize
         self.windowWidth, self.windowHeight = windowSize
@@ -108,8 +131,9 @@ class Game:
         # game variables
         self.running = True
         self.gameStarted = False
-        self.menuScreen = False
+        self.MenuFlag = False
         self.gameStartedAnim = False
+        self.gameStartedFlag = True
         self.default_bg = "#061A52"
         self.Design = Design(self.screen, self.windowSize, self.default_bg)
         self.clock = pygame.time.Clock()
@@ -117,7 +141,8 @@ class Game:
         
 
         # fonts
-        self.title_font = pygame.font.Font("Python/PONG/font/PressStart2P-Regular.ttf", 96)
+        self.title_file = "Python/PONG/font/PressStart2P-Regular.ttf"
+        self.title_font = pygame.font.Font(self.title_file, 100)
 
     def GameLoop(self):
         while self.running:
@@ -131,17 +156,19 @@ class Game:
             self.Draw()
 
     def Draw(self):
-        if not self.gameStarted:
-            self.Design.draw_bg()
+        if not self.gameStarted and self.gameStartedFlag:
             self.GameStart()
-        elif self.menuScreen:
-            self.Design.draw_bg()
+
+        elif self.MenuFlag:
+            self.Menu()
+
         else:
             self.Design.draw_bg()
         pygame.display.flip()
 
     def GameStart(self):
-        font=self.title_font        
+        font=self.title_font
+        self.Design.draw_bg()        
         if not self.gameStartedAnim:
             self.gameStartedAnim = self.Design.draw_dropping_text(  font=["file", False, font], 
                                                                     x_loc=self.windowWidth//5,
@@ -154,7 +181,7 @@ class Game:
 
         #clear and freeze the ping pong logo
         self.Design.draw_bg()
-        self.Design.draw_words( "PING-PONG", [self.windowWidth//5, self.windowHeight//2], ["file", False, font], (True, 20))
+        self.Design.draw_words( "PING-PONG", [self.windowWidth//2, self.windowHeight//3], ["file", False, font], (True, 20))
         self.Design.draw_words( "press anything to continue", [self.windowWidth - 1000, self.windowHeight - 200])
 
         # Wait 1 second before accepting keyboard input
@@ -164,17 +191,22 @@ class Game:
         #check if key pressed then continue
         keys = pygame.key.get_pressed()
         if any(keys) and not( keys[pygame.K_LALT] and keys[pygame.K_TAB]):
-            pass
-
-            # self.gameStarted = True
-            # pygame.mixer.music.set_volume(0.5)
-            # pygame.mixer.music.play(-1)
+            self.MenuFlag = True
+            pygame.mixer.music.set_volume(0.5)
+            pygame.mixer.music.play(-1)
+            self.gameStartedFlag = False
 
     def Pause(self):
         design = Design(self.screen, self.windowSize, "black")
         font = self.title_font
         design.draw_bg()
         design.draw_words("PING PONG", (self.windowSize[0] // 10, self.windowSize[1] // 5), )
+
+    def Menu(self):
+        mouse = pygame.mouse.get_pos()
+        self.Design.draw_bg()
+        self.Design.draw_words("PING PONG", [self.windowWidth // 2, self.windowHeight // 11], ["file", False, self.title_font], (True, 20))
+        self.Design.draw_interactable_button([self.windowWidth // 2, self.windowHeight // 2], "white", ["file", True, (self.title_file, 60)], "start", mouse, ("outline"))
 
 class Ball:
     def __init__(self):
